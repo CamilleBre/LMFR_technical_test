@@ -36,10 +36,10 @@ def main():
         help="Metric to use for training and evaluation",
     )
     parser.add_argument(
-        "--hp_gridsearch",
+        "--hp_randsearch",
         type=str,
         default="False",
-        help="Perform hyperparameters gridsearch optimization",
+        help="Perform hyperparameters RandomizedSearch optimization",
     )
     args = parser.parse_args()
     print(args)

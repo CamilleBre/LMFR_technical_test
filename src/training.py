@@ -2,9 +2,9 @@ import warnings
 
 import pandas as pd
 import numpy as np 
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold, GridSearchCV 
+from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold, RandomizedSearchCV 
 #from sklearn.neighbors import KNeighborsClassifier
-
+from scipy.stats import uniform
 from sklearn.ensemble import (
     RandomForestClassifier,
 )
@@ -57,26 +57,26 @@ def train(X, y, args):
                         )    
             
     else:
-        #if args.hp_gridsearch == False:
-        if args.model_name == 'all':
-            df = pd.DataFrame()
-            for name, clf in models_dict.items():
-                list_results = no_cv_training(name,clf,X,y,list_results,args)
-                print(f"Model {name} trained - {list_results} ")
+        if args.hp_randsearch == False:
+            if args.model_name == 'all':
+                df = pd.DataFrame()
+                for name, clf in models_dict.items():
+                    list_results = no_cv_training(name,clf,X,y,list_results,args)
+                    print(f"Model {name} trained - {list_results} ")
 
-        else:
-            name = args.model_name
-            clf = models_dict[name]
-            list_results = no_cv_training(name,clf,X,y,list_results,args)
+            else:
+                name = args.model_name
+                clf = models_dict[name]
+                list_results = no_cv_training(name,clf,X,y,list_results,args)
+                
+            df = pd.DataFrame(list_results, columns=["Classifier", args.metric])
             
-        df = pd.DataFrame(list_results, columns=["Classifier", args.metric])
-            
-# -       else :
-#             if args.model_name == 'XGBoost':
-#                 name = args.model_name
-#                 clf = models_dict[name]
-#                 hyperparameter_training(clf,X,y,args)
-#                 df = pd.DataFrame(['XGBoost'], columns=["Classifier", args.metric]) 
+        else :
+            if args.model_name == 'SVM':
+                name = args.model_name
+                clf = models_dict[name]
+                list_results = hyperparameter_training(name,clf,X,y,args)
+                df = pd.DataFrame(list_results, columns=["Classifier", args.metric]) 
 
 
     
@@ -155,32 +155,37 @@ def save_model(name,model,args) :
     
     
     
-# def hyperparameter_training(clf,X,y,args):
-#     # Define the hyperparameters to be tuned 
-#     hyperparameters = {
-#     'gradientboostingclassifier__learning_rate': [0.1, 0.01, 0.001],
-#     'gradientboostingclassifier__max_depth': [3, 5, 7],
-#     'gradientboostingclassifier__n_estimators': [100, 200, 300]
-#     }   
+def hyperparameter_training(name,clf,X,y,args):
+    # Define the hyperparameters to be tuned 
+    hyperparameters = {
+    'svc__C': uniform(loc=0, scale=10),
+    'svc__gamma': ['scale', 'auto'],
+    'svc__kernel': ['linear', 'rbf']
+    }
 
-#     X_train, X_test, y_train, y_test = train_test_split(
-#                 X, y, test_size=0.20, random_state=0
-#             )
+    X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.20, random_state=0
+            )
 
-#     scaler = scale_method(args)
-#     pipeline = make_pipeline(scaler,clf)
+    scaler = scale_method(args)
+    pipeline = make_pipeline(scaler,clf)
 
-#     # Perform grid search cross-validation
-#     grid_search = GridSearchCV(pipeline, hyperparameters, cv=5)
-#     grid_search.fit(X_train, y_train)
+    # Perform random search cross-validation
+    random_search = RandomizedSearchCV(pipeline, hyperparameters, n_iter=10, scoring=args.metric, cv=5, random_state=42)
+    random_search.fit(X_train, y_train)
 
-#     # Get the best model and its hyperparameters
-#     best_model = grid_search.best_estimator_
-#     best_params = grid_search.best_params_
+    # Get the best model and its hyperparameters
+    best_model = random_search.best_estimator_
+    best_params = random_search.best_params_
 
-#     # Evaluate the best model on the test set
-#     y_pred = best_model.predict(X_test)
-#     auc_roc_score = roc_auc_score(y_test, y_pred)
-#     print("Best model auc:", auc_roc_score)
-#     print("Best hyperparameters:", best_params)
-#     save_model('best_hyp',best_model,args)
+    # Evaluate the best model on the test set
+    y_pred = best_model.predict(X_test)
+    if args.metric == 'f1':
+        score = f1_score(y_test, y_pred)
+    if args.metric == 'recall':
+        score = recall_score(y_test, y_pred)
+    print(f"Best model {args.metric}", score)
+    print("Best hyperparameters:", best_params)
+    save_model('best_hyp',best_model,args)
+    list_results = [name, score]
+    return list_results
