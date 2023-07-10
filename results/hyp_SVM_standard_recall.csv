@@ -1,0 +1,2 @@
+Classifier,recall,svc__C,svc__gamma,svc__kernel
+SVM,0.8448676265675801,0.20584494295802447,'auto','rbf'
